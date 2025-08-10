@@ -1,6 +1,71 @@
-YOU SHLOULD MODIFY 
-    wow_client = WoWPvPLeaderboard(
-        client_id="YOUR_CLIENT_ID",
-        client_secret="YOUR_CLIENT_SECRET"
-    )
+# WoW PvP Leaderboard Scraper
 
+A Python tool to fetch World of Warcraft PvP leaderboard data from Battle.net API, supporting both legacy and current season formats.
+
+## Features
+
+- Supports Season 1-11+ leaderboard data
+- Compatible with both old (Season 8-) and new (Season 9+) API endpoints
+- Fetches 2v2, 3v3, 5v5 arena brackets and RBG (Season 9+)
+- Optional character details enrichment (class, race)
+- Batch processing with rate limiting
+- JSON output with standardized naming
+
+## Setup
+
+### 1. Battle.net API Credentials
+
+1. Create a Battle.net developer account at [develop.battle.net](https://develop.battle.net)
+2. Create a new client application
+3. Note your **Client ID** and **Client Secret**
+
+### 2. Configuration
+
+**⚠️ IMPORTANT:** Modify the API credentials in `dumpArena.py`:
+
+```python
+# Replace with your actual credentials
+wow_client = WoWPvPLeaderboard(
+    client_id="YOUR_CLIENT_ID",        # Replace this
+    client_secret="YOUR_CLIENT_SECRET" # Replace this
+)
+```
+
+### 3. Dependencies
+
+```bash
+pip install requests
+```
+
+## Usage
+
+Run the script:
+```bash
+python dumpArena.py
+```
+
+Follow the interactive prompts to:
+1. Select season(s) to scrape
+2. Choose brackets (2v2, 3v3, 5v5, rbg)
+3. Enable/disable character details enrichment
+
+## Output
+
+Files are saved to `./data/` directory with format:
+```
+season_{season}_{bracket}_tw_arena.json
+```
+
+Example: `season_12_2v2_tw_arena.json`
+
+## API Limitations
+
+- Rate limited requests with automatic delays
+- Character details fetching significantly increases processing time
+- RBG brackets only available for Season 9+
+
+## Notes
+
+- Taiwan region API endpoint (`tw.api.blizzard.com`)
+- Classic WoW profile namespace
+- Caches character details to avoid duplicate requests
