@@ -71,13 +71,10 @@ For questions, suggestions, or technical support, please open an issue in this r
 Special thanks to the Taiwan World of Warcraft Classic community for their continued support and engagement in competitive PvP.
 
 ---
-
-**Author**: Yesican - ivus 榮耀來自於夥伴
-
-**Project**: Taiwan WoW Classic Arena Historical Leaderboard
-**Contact me**: wnwkimo@hotmail.com
+**Author**: Yesican - ivus 榮耀來自於夥伴  
+**Project**: Taiwan WoW Classic Arena Historical Leaderboard  
+**Contact me**: wnwkimo@hotmail.com  
 **Repository**: [wnwkimo/tw_classic_arena_leadderboard](https://github.com/wnwkimo/tw_classic_arena_leadderboard)
-
 ---
 
 *Last Updated: August 2025*
