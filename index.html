@@ -17,51 +17,30 @@
   .member-names-hidden { display: none; }
   .class-race-container { white-space: nowrap; min-width: 120px; }
   .class-race-container img { flex-shrink: 0; }
-    .no-wrap { 
-    white-space: nowrap !important; 
-    overflow: hidden; 
-    text-overflow: ellipsis; 
-    max-width: 200px;
-    word-break: keep-all !important;
-    overflow-wrap: normal !important;
-    word-wrap: normal !important;
-  }
-  .name-cell { 
-    white-space: nowrap !important; 
-    overflow: hidden; 
-    text-overflow: ellipsis; 
-    max-width: 150px;
-    word-break: keep-all !important;
-    overflow-wrap: normal !important;
-    word-wrap: normal !important;
-  }
-  .realm-cell { 
-    white-space: nowrap !important; 
-    overflow: hidden; 
-    text-overflow: ellipsis; 
-    max-width: 120px;
-    word-break: keep-all !important;
-    overflow-wrap: normal !important;
-    word-wrap: normal !important;
-  }
-  /* 確保表格單元格不會強制換行 */
-  #leaderboard td, #memberTable td {
-    white-space: nowrap;
-    word-break: keep-all;
-  }
-  /* 但允許有特定class的單元格可以正常顯示 */
-  #leaderboard td.name-cell, #leaderboard td.realm-cell, #memberTable td.no-wrap {
-    white-space: nowrap !important;
-  }
-  }
+  .no-wrap { white-space: nowrap !important; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+  .name-cell { white-space: nowrap !important; overflow: hidden; text-overflow: ellipsis; max-width: 150px; }
+  .realm-cell { white-space: nowrap !important; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+  #leaderboard td, #memberTable td { white-space: nowrap; word-break: keep-all; }
+  #leaderboard td.name-cell, #leaderboard td.realm-cell, #memberTable td.no-wrap { white-space: nowrap !important; }
 </style>
 </head>
 <body>
 <div class="container">
     <h1 class="mb-3">魔獸世界 PvP 排行分析</h1>
-    <div class="d-flex gap-2 mb-3">
+    <div class="d-flex gap-2 mb-3 flex-wrap">
+      <!-- 本地端上傳 -->
       <input type="file" id="fileInput" class="form-control" accept=".json">
       <button id="clearBtn" class="btn btn-secondary">清除表格</button>
+      <!-- GitHub 載入 -->
+      <select id="seasonSelect" class="form-select w-auto">
+        <option value="1">S1</option><option value="2">S2</option><option value="3">S3</option><option value="4">S4</option>
+        <option value="5">S5</option><option value="6">S6</option><option value="7">S7</option><option value="8">S8</option>
+        <option value="9">S9</option><option value="10">S10</option><option value="11">S11</option>
+      </select>
+      <select id="bracketSelect" class="form-select w-auto">
+        <option value="2v2">2v2</option><option value="3v3">3v3</option><option value="5v5">5v5</option>
+      </select>
+      <button id="loadGithubBtn" class="btn btn-primary">讀取 GitHub JSON</button>
     </div>
 
     <div class="mb-3">
@@ -94,12 +73,12 @@
     <canvas id="ratingChart" height="100"></canvas>
 </div>
 
-<!-- Team / Character Modal -->
+<!-- Modal -->
 <div class="modal fade" id="teamModal" tabindex="-1">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content bg-dark text-light">
       <div class="modal-header">
-        <h5 class="modal-title" id="teamModalLabel">詳情</h5>
+        <h5 class="modal-title">詳情</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
@@ -110,7 +89,6 @@
             <div id="modalSub" class="small text-muted">-</div>
           </div>
         </div>
-
         <div id="memberSection">
           <div class="table-responsive">
             <table class="table table-sm table-dark" id="memberTable">
@@ -131,7 +109,6 @@
             </table>
           </div>
         </div>
-
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
@@ -147,6 +124,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
+
 // Class maps and colors
 const CLASS_MAP = {1:'戰士',2:'聖騎士',3:'獵人',4:'盜賊',5:'牧師',6:'死亡騎士',7:'薩滿',8:'法師',9:'術士',10:'武僧',11:'德魯伊',12:'惡魔獵人',13:'喚法師'};
 const CLASS_COLOR_MAP = {1:'#C79C6E',2:'#F58CBA',3:'#ABD473',4:'#FFF569',5:'#FFFFFF',6:'#C41F3B',7:'#0070DE',8:'#69CCF0',9:'#9482C9',10:'#00FF96',11:'#FF7D0A',12:'#A330C9',13:'#33937F'};
@@ -502,6 +480,43 @@ function openModalFor(entry){
 
 function escapeHtml(s){ return String(s||'').replace(/[&<>\"]/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]; }); }
 
+// 本地端載入 JSON
+$('#fileInput').on('change', async function(e){
+  const f = e.target.files[0];
+  if(!f) return;
+  try{
+    const text = await f.text();
+    const json = JSON.parse(text);
+    loadJson(json);
+  }catch(err){
+    console.error('檔案讀取或解析失敗', err);
+    alert('JSON 讀取或解析失敗：' + err.message);
+  } finally {
+    e.target.value = '';
+  }
+});
+
+// 清除表格
+$('#clearBtn').on('click', function(){ clearAll(); });
+
+// GitHub 載入 JSON
+$('#loadGithubBtn').on('click', async function(){
+  const season = $('#seasonSelect').val();
+  const bracket = $('#bracketSelect').val();
+  const url = `https://wnwkimo.github.io/data/season_${season}_${bracket}_tw_arena.json`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    loadJson(json);
+  } catch (err) {
+    console.error('讀取 GitHub JSON 失敗', err);
+    alert('無法讀取該檔案，請確認檔案是否存在於 GitHub。');
+  }
+});
+
 </script>
+
+
 </body>
 </html>
