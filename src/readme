@@ -1,0 +1,6 @@
+YOU SHLOULD MODIFY 
+    wow_client = WoWPvPLeaderboard(
+        client_id="YOUR_CLIENT_ID",
+        client_secret="YOUR_CLIENT_SECRET"
+    )
+
