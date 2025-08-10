@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>魔獸世界 PvP 排行分析</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css">
+<style>
+  body { background-color: #0b1220; color: #e6eef6; font-family: Inter, system-ui, Arial; }
+  .container { margin-top: 28px; }
+  canvas { background-color: white; border-radius: 8px; }
+  .summary-text { color: #f4f7fb; font-weight: 600; }
+  .crest-box{width:40px;height:40px;border-radius:6px;display:inline-block;vertical-align:middle}
+  .role-label{font-weight:700}
+  .table-dark thead th{color:#cfe7ff}
+  a.name-link{cursor:pointer}
+  .member-names-hidden { display: none; }
+  .class-race-container { white-space: nowrap; min-width: 120px; }
+  .class-race-container img { flex-shrink: 0; }
+    .no-wrap { 
+    white-space: nowrap !important; 
+    overflow: hidden; 
+    text-overflow: ellipsis; 
+    max-width: 200px;
+    word-break: keep-all !important;
+    overflow-wrap: normal !important;
+    word-wrap: normal !important;
+  }
+  .name-cell { 
+    white-space: nowrap !important; 
+    overflow: hidden; 
+    text-overflow: ellipsis; 
+    max-width: 150px;
+    word-break: keep-all !important;
+    overflow-wrap: normal !important;
+    word-wrap: normal !important;
+  }
+  .realm-cell { 
+    white-space: nowrap !important; 
+    overflow: hidden; 
+    text-overflow: ellipsis; 
+    max-width: 120px;
+    word-break: keep-all !important;
+    overflow-wrap: normal !important;
+    word-wrap: normal !important;
+  }
+  /* 確保表格單元格不會強制換行 */
+  #leaderboard td, #memberTable td {
+    white-space: nowrap;
+    word-break: keep-all;
+  }
+  /* 但允許有特定class的單元格可以正常顯示 */
+  #leaderboard td.name-cell, #leaderboard td.realm-cell, #memberTable td.no-wrap {
+    white-space: nowrap !important;
+  }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+    <h1 class="mb-3">魔獸世界 PvP 排行分析</h1>
+    <div class="d-flex gap-2 mb-3">
+      <input type="file" id="fileInput" class="form-control" accept=".json">
+      <button id="clearBtn" class="btn btn-secondary">清除表格</button>
+    </div>
+
+    <div class="mb-3">
+        <span class="summary-text me-4" id="summaryTeams">隊伍/角色數: -</span>
+        <span class="summary-text me-4" id="summaryRating">平均 Rating: -</span>
+        <span class="summary-text me-4" id="summaryMatches">總場次: -</span>
+        <span class="summary-text" id="summaryMax">最高 Rating: -</span>
+    </div>
+
+    <table id="leaderboard" class="table table-striped table-dark" style="width:100%">
+        <thead>
+            <tr>
+                <th>排名</th>
+                <th>名稱</th>
+                <th>伺服器</th>
+                <th>職業</th>
+                <th>種族</th>
+                <th>Rating</th>
+                <th>場數</th>
+                <th>勝</th>
+                <th>敗</th>
+                <th>勝率%</th>
+                <th class="member-names-hidden">成員名稱</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <h3 class="mt-4">Rating 分佈圖</h3>
+    <canvas id="ratingChart" height="100"></canvas>
+</div>
+
+<!-- Team / Character Modal -->
+<div class="modal fade" id="teamModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content bg-dark text-light">
+      <div class="modal-header">
+        <h5 class="modal-title" id="teamModalLabel">詳情</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="d-flex align-items-center mb-3">
+          <div id="modalCrest" class="crest-box me-3" style="background:#222"></div>
+          <div>
+            <div id="modalTitle" class="h5 mb-0">-</div>
+            <div id="modalSub" class="small text-muted">-</div>
+          </div>
+        </div>
+
+        <div id="memberSection">
+          <div class="table-responsive">
+            <table class="table table-sm table-dark" id="memberTable">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>名稱</th>
+                  <th>職業</th>
+                  <th>種族</th>
+                  <th>Rating</th>
+                  <th>Played</th>
+                  <th>Won</th>
+                  <th>Lost</th>
+                  <th>Win%</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+// Class maps and colors
+const CLASS_MAP = {1:'戰士',2:'聖騎士',3:'獵人',4:'盜賊',5:'牧師',6:'死亡騎士',7:'薩滿',8:'法師',9:'術士',10:'武僧',11:'德魯伊',12:'惡魔獵人',13:'喚法師'};
+const CLASS_COLOR_MAP = {1:'#C79C6E',2:'#F58CBA',3:'#ABD473',4:'#FFF569',5:'#FFFFFF',6:'#C41F3B',7:'#0070DE',8:'#69CCF0',9:'#9482C9',10:'#00FF96',11:'#FF7D0A',12:'#A330C9',13:'#33937F'};
+
+// Class icon URLs
+const CLASS_ICON_MAP = {
+  1:'https://wow.zamimg.com/images/wow/icons/medium/classicon_warrior.jpg',
+  2:'https://wow.zamimg.com/images/wow/icons/medium/classicon_paladin.jpg',
+  3:'https://wow.zamimg.com/images/wow/icons/medium/classicon_hunter.jpg',
+  4:'https://wow.zamimg.com/images/wow/icons/medium/classicon_rogue.jpg',
+  5:'https://wow.zamimg.com/images/wow/icons/medium/classicon_priest.jpg',
+  6:'https://wow.zamimg.com/images/wow/icons/medium/classicon_deathknight.jpg',
+  7:'https://wow.zamimg.com/images/wow/icons/medium/classicon_shaman.jpg',
+  8:'https://wow.zamimg.com/images/wow/icons/medium/classicon_mage.jpg',
+  9:'https://wow.zamimg.com/images/wow/icons/medium/classicon_warlock.jpg',
+  10:'https://wow.zamimg.com/images/wow/icons/medium/classicon_monk.jpg',
+  11:'https://wow.zamimg.com/images/wow/icons/medium/classicon_druid.jpg',
+  12:'https://wow.zamimg.com/images/wow/icons/medium/classicon_demonhunter.jpg',
+  13:'https://wow.zamimg.com/images/wow/icons/medium/classicon_evoker.jpg'
+};
+
+// Race ID to name mapping (based on Blizzard API)
+const RACE_MAP = {
+  1: 'Human',
+  2: 'Orc', 
+  3: 'Dwarf',
+  4: 'Night Elf',
+  5: 'Undead',
+  6: 'Tauren',
+  7: 'Gnome',
+  8: 'Troll',
+  9: 'Goblin',
+  10: 'Blood Elf',
+  11: 'Draenei',
+  22: 'Worgen',
+  24: 'Pandaren',
+  25: 'Pandaren',
+  26: 'Pandaren',
+  27: 'Nightborne',
+  28: 'Highmountain Tauren',
+  29: 'Void Elf',
+  30: 'Lightforged Draenei',
+  31: 'Zandalari Troll',
+  32: 'Kul Tiran',
+  34: 'Dark Iron Dwarf',
+  35: 'Vulpera',
+  36: 'Mag\'har Orc',
+  37: 'Mechagnome',
+  52: 'Dracthyr',
+  70: 'Earthen'
+};
+
+// Race icons (using commonly available race crests/icons)
+const RACE_ICON_MAP = {
+  1: 'https://wow.zamimg.com/images/wow/icons/medium/race_human_male.jpg',
+  2: 'https://wow.zamimg.com/images/wow/icons/medium/race_orc_male.jpg',
+  3: 'https://wow.zamimg.com/images/wow/icons/medium/race_dwarf_male.jpg',
+  4: 'https://wow.zamimg.com/images/wow/icons/medium/race_nightelf_male.jpg',
+  5: 'https://wow.zamimg.com/images/wow/icons/medium/race_scourge_male.jpg',
+  6: 'https://wow.zamimg.com/images/wow/icons/medium/race_tauren_male.jpg',
+  7: 'https://wow.zamimg.com/images/wow/icons/medium/race_gnome_male.jpg',
+  8: 'https://wow.zamimg.com/images/wow/icons/medium/race_troll_male.jpg',
+  9: 'https://wow.zamimg.com/images/wow/icons/medium/race_goblin_male.jpg',
+  10: 'https://wow.zamimg.com/images/wow/icons/medium/race_bloodelf_male.jpg',
+  11: 'https://wow.zamimg.com/images/wow/icons/medium/race_draenei_male.jpg',
+  22: 'https://wow.zamimg.com/images/wow/icons/medium/race_worgen_male.jpg',
+  24: 'https://wow.zamimg.com/images/wow/icons/medium/race_pandaren_male.jpg',
+  25: 'https://wow.zamimg.com/images/wow/icons/medium/race_pandaren_male.jpg',
+  26: 'https://wow.zamimg.com/images/wow/icons/medium/race_pandaren_male.jpg',
+  27: 'https://wow.zamimg.com/images/wow/icons/medium/race_nightborne_male.jpg',
+  28: 'https://wow.zamimg.com/images/wow/icons/medium/race_highmountaintauren_male.jpg',
+  29: 'https://wow.zamimg.com/images/wow/icons/medium/race_voidelf_male.jpg',
+  30: 'https://wow.zamimg.com/images/wow/icons/medium/race_lightforgeddraenei_male.jpg',
+  31: 'https://wow.zamimg.com/images/wow/icons/medium/race_zandalari_male.jpg',
+  32: 'https://wow.zamimg.com/images/wow/icons/medium/race_kultiran_male.jpg',
+  34: 'https://wow.zamimg.com/images/wow/icons/medium/race_darkiron_male.jpg',
+  35: 'https://wow.zamimg.com/images/wow/icons/medium/race_vulpera_male.jpg',
+  36: 'https://wow.zamimg.com/images/wow/icons/medium/race_magharorc_male.jpg',
+  37: 'https://wow.zamimg.com/images/wow/icons/medium/race_mechagnome_male.jpg',
+  52: 'https://wow.zamimg.com/images/wow/icons/medium/race_dracthyr_male.jpg',
+  70: 'https://wow.zamimg.com/images/wow/icons/medium/race_earthen_male.jpg'
+};
+
+let dataTable = null;
+let ratingChart = null;
+let currentVisible = []; // array of processed entries with uid
+let uidCounter = 0;
+
+function safeNum(v){ return (typeof v==='number' && !isNaN(v))? v : (parseInt(v) || 0); }
+
+$('#fileInput').on('change', async function(e){
+  const f = e.target.files[0];
+  if(!f) return;
+  try{
+    const text = await f.text();
+    const json = JSON.parse(text);
+    loadJson(json);
+  }catch(err){
+    console.error('檔案讀取或解析失敗', err);
+    alert('JSON 讀取或解析失敗：' + err.message);
+  } finally {
+    // allow re-upload same file later
+    e.target.value = '';
+  }
+});
+
+$('#clearBtn').on('click', function(){ clearAll(); });
+
+function clearAll(){
+  // destroy DataTable
+  if ($.fn.DataTable.isDataTable('#leaderboard')) {
+    try{ $('#leaderboard').DataTable().clear().destroy(); }catch(e){}
+  }
+  $('#leaderboard tbody').empty();
+  if (ratingChart) { try{ ratingChart.destroy(); }catch(e){} }
+  $('#summaryTeams').text('隊伍/角色數: -');
+  $('#summaryRating').text('平均 Rating: -');
+  $('#summaryMatches').text('總場次: -');
+  $('#summaryMax').text('最高 Rating: -');
+  currentVisible = [];
+}
+
+function loadJson(json){
+  if (!json || !Array.isArray(json.entries)) {
+    alert('找不到 entries 欄位，請確認上傳的 JSON 格式');
+    return;
+  }
+  const processed = json.entries.map((e) => {
+    const stat = e.season_match_statistics || {};
+    const played = safeNum(stat.played);
+    const won = safeNum(stat.won);
+    const lost = safeNum(stat.lost);
+    const winRate = played ? (won / played * 100) : 0;
+    const isTeam = !!e.team;
+    let memberNames = [];
+    if (isTeam && e.team?.members) {
+      memberNames = e.team.members.map(m => m.character?.name || '').filter(Boolean);
+    }
+    return {
+      uid: uidCounter++,
+      raw: e,
+      isTeam,
+      rank: e.rank ?? null,
+      rating: safeNum(e.rating),
+      played,
+      won,
+      lost,
+      winRate,
+      memberNames,
+      teamName: e.team?.name ?? null,
+      teamRealm: e.team?.realm?.slug ?? null,
+      members: e.team?.members ?? null,
+      charName: e.character?.name ?? null,
+      charRealm: e.character?.realm?.slug ?? null,
+      charClassId: e.character?.playable_class?.id ?? null,
+      charClassName: e.character?.playable_class?.name ?? null,
+      charRaceId: e.character?.playable_race?.id ?? null,
+      charRaceName: e.character?.playable_race?.name ?? null
+    };
+  });
+  processed.sort((a, b) => b.rating - a.rating);
+  currentVisible = processed;
+  renderTable(processed);
+  renderSummary(processed);
+  renderChart(processed);
+}
+
+function renderTable(list){
+  // destroy existing table before modifying DOM
+  if ($.fn.DataTable.isDataTable('#leaderboard')) {
+    try{ $('#leaderboard').DataTable().clear().destroy(); }catch(e){ console.warn(e); }
+  }
+  const tbody = $('#leaderboard tbody').empty();
+
+  list.forEach((item, idx)=>{
+    const name = item.isTeam ? (item.teamName || '-') : (item.charName || '-');
+    const realm = item.isTeam ? (item.teamRealm || '-') : (item.charRealm || '-');
+
+    // color for character entries if class present
+    let nameHtml = escapeHtml(name);
+    const classId = !item.isTeam ? item.charClassId : null;
+    if (classId && CLASS_COLOR_MAP[classId]){
+      nameHtml = `<a class="name-link text-decoration-none" data-uid="${item.uid}"><span style=\"color:${CLASS_COLOR_MAP[classId]}\">${escapeHtml(name)}</span></a>`;
+    } else {
+      nameHtml = `<a class="name-link text-decoration-none" data-uid="${item.uid}">${escapeHtml(name)}</a>`;
+    }
+
+    // 建立成員名稱字串供搜尋使用
+    const memberNamesForSearch = item.memberNames.join(' ');
+
+    // 職業和種族顯示 (for S5+ individual entries or team)
+    let classHtml = '-';
+    let raceHtml = '-';
+    if (!item.isTeam) {
+      if (item.charClassId) {
+        const className = CLASS_MAP[item.charClassId] || item.charClassName || '未知';
+        const classIcon = CLASS_ICON_MAP[item.charClassId] || '';
+        const classColor = CLASS_COLOR_MAP[item.charClassId] || '#FFFFFF';
+        classHtml = `<div class="d-flex align-items-center class-race-container"><span style="color:${classColor}">${escapeHtml(className)}</span>${classIcon ? `<img src="${classIcon}" alt="${className}" style="width:20px;height:20px;margin-left:5px;">` : ''}</div>`;
+      } else {
+        classHtml = '<span class="text-muted">未知</span>';
+      }
+      if (item.charRaceId) {
+        const raceName = RACE_MAP[item.charRaceId] || item.charRaceName || '未知';
+        const raceIcon = RACE_ICON_MAP[item.charRaceId] || '';
+        raceHtml = `<div class="d-flex align-items-center class-race-container"><span>${escapeHtml(raceName)}</span>${raceIcon ? `<img src="${raceIcon}" alt="${raceName}" style="width:20px;height:20px;margin-left:5px;">` : ''}</div>`;
+      } else {
+        raceHtml = '<span class="text-muted">未知</span>';
+      }
+    } else {
+      classHtml = '<span class="text-muted">隊伍</span>';
+      raceHtml = '<span class="text-muted">-</span>';
+    }
+    const tr = $(`<tr data-uid="${item.uid}">
+      <td>${item.rank??''}</td>
+      <td>${nameHtml}</td>
+      <td>${escapeHtml(realm)}</td>
+      <td>${classHtml}</td>
+      <td>${raceHtml}</td>
+      <td>${item.rating}</td>
+      <td>${item.played}</td>
+      <td>${item.won}</td>
+      <td>${item.lost}</td>
+      <td>${item.winRate.toFixed(1)}</td>
+      <td class="member-names-hidden">${escapeHtml(memberNamesForSearch)}</td>
+    </tr>`);
+
+    tbody.append(tr);
+  });
+
+  // initialize DataTable
+  try{
+    dataTable = $('#leaderboard').DataTable({ 
+      pageLength: 15, 
+      order:[[5,'desc']], // 更新為第6欄(Rating)
+      columnDefs: [
+        {
+          targets: 10, // 更新成員名稱欄位索引
+          visible: false, // 隱藏欄位但仍可搜尋
+          searchable: true
+        }
+      ]
+    });
+  }catch(e){ console.warn('DataTable init failed', e); }
+
+  // bind click (use delegation)
+  $('#leaderboard tbody').off('click', '.name-link').on('click', '.name-link', function(ev){
+    const uid = $(this).data('uid');
+    const entry = currentVisible.find(x=>x.uid === uid);
+    if (entry) openModalFor(entry);
+  });
+}
+
+function renderSummary(list){
+  const count = list.length;
+  const totalRating = list.reduce((s,i)=>s+i.rating,0);
+  const totalMatches = list.reduce((s,i)=>s+i.played,0);
+  const maxRating = count? Math.max(...list.map(i=>i.rating)) : 0;
+  $('#summaryTeams').text(`隊伍/角色數: ${count}`);
+  $('#summaryRating').text(`平均 Rating: ${count? (totalRating/count).toFixed(1) : '-'} `);
+  $('#summaryMatches').text(`總場次: ${totalMatches}`);
+  $('#summaryMax').text(`最高 Rating: ${maxRating}`);
+}
+
+function renderChart(list){
+  const labels = list.map(i=> i.isTeam ? (i.teamName||i.charName) : (i.charName||i.teamName));
+  const ratings = list.map(i=> i.rating);
+  const ctx = document.getElementById('ratingChart').getContext('2d');
+  if (ratingChart) { try{ ratingChart.destroy(); }catch(e){} }
+  ratingChart = new Chart(ctx, {
+    type:'bar', data: { labels, datasets:[{ label:'Rating', data: ratings, backgroundColor:'rgba(54,162,235,0.8)'}] },
+    options:{ responsive:true, plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:'#111'}}, y:{beginAtZero:true} } }
+  });
+}
+
+function openModalFor(entry){
+  $('#modalTitle').text(entry.isTeam? (entry.teamName || '隊伍') : (entry.charName || '角色'));
+  $('#modalSub').text(entry.isTeam? `Realm: ${entry.teamRealm || '-' }  •  Rating: ${entry.rating}` : `Realm: ${entry.charRealm || '-'}  •  Rating: ${entry.rating}`);
+
+  // crest
+  const crestEl = document.getElementById('modalCrest');
+  crestEl.style.background = '#222';
+  if (entry.raw.team?.crest?.background?.color?.rgba) {
+    const c = entry.raw.team.crest.background.color.rgba;
+    crestEl.style.background = `rgba(${c.r},${c.g},${c.b},${c.a})`;
+  }
+
+  // populate members or single character
+  const tbody = $('#memberTable tbody').empty();
+  if (entry.isTeam && Array.isArray(entry.members) && entry.members.length>0){
+    entry.members.forEach((m, idx)=>{
+      const ch = m.character || {};
+      const name = ch.name || '-';
+      const clsId = ch.playable_class?.id ?? m.character?.playable_class?.id ?? null;
+      const clsName = (clsId && CLASS_MAP[clsId]) ? CLASS_MAP[clsId] : (ch.playable_class?.name || '-');
+      const raceLable = ch.playable_race?.name || '-';
+      const rating = safeNum(m.rating || m.rating);
+      const stats = m.season_match_statistics || {};
+      const played = safeNum(stats.played), won = safeNum(stats.won), lost = safeNum(stats.lost);
+      const winp = played? (won/played*100).toFixed(1) : '0.0';
+      
+      // 職業顯示（含圖標和顏色）
+      const classIcon = CLASS_ICON_MAP[clsId] || '';
+      const classColor = CLASS_COLOR_MAP[clsId] || '#FFFFFF';
+      const clsHtml = `<div class="d-flex align-items-center role-label class-race-container">
+        <span style="color:${classColor}">${escapeHtml(clsName)}</span>
+        ${classIcon ? `<img src="${classIcon}" alt="${clsName}" style="width:20px;height:20px;margin-left:5px;" onerror="this.style.display='none'">` : ''}
+      </div>`;
+      
+      // 種族顯示（含圖標）
+      const raceId = ch.playable_race?.id ?? null;
+      const raceName = raceId ? (RACE_MAP[raceId] || `Race ${raceId}`) : '-';
+      const raceIcon = raceId ? (RACE_ICON_MAP[raceId] || '') : '';
+      const raceHtml = `<div class="d-flex align-items-center class-race-container">
+        <span>${escapeHtml(raceName)}</span>
+        ${raceIcon ? `<img src="${raceIcon}" alt="${raceName}" style="width:20px;height:20px;margin-left:5px;" onerror="this.style.display='none'">` : ''}
+      </div>`;
+      
+      const row = `<tr><td>${idx+1}</td><td>${escapeHtml(name)}</td><td>${clsHtml}</td><td>${raceHtml}</td><td>${rating}</td><td>${played}</td><td>${won}</td><td>${lost}</td><td>${winp}</td></tr>`;
+      tbody.append(row);
+    });
+  } else {
+    // single character entry (s5+)
+    const name = entry.charName || entry.teamName || '-';
+    const clsId = entry.charClassId || null;
+    const clsName = (clsId && CLASS_MAP[clsId]) ? CLASS_MAP[clsId] : (entry.charClassName || '-');
+    const raceId = entry.charRaceId || null;
+    const raceName = raceId ? (RACE_MAP[raceId] || `Race ${raceId}`) : (entry.raw.character?.playable_race?.name || '-');
+    
+    // 職業顯示（含圖標和顏色）
+    const classIcon = CLASS_ICON_MAP[clsId] || '';
+    const classColor = CLASS_COLOR_MAP[clsId] || '#FFFFFF';
+    const clsHtml = `<div class="d-flex align-items-center role-label class-race-container">
+      <span style="color:${classColor}">${escapeHtml(clsName)}</span>
+      ${classIcon ? `<img src="${classIcon}" alt="${clsName}" style="width:20px;height:20px;margin-left:5px;" onerror="this.style.display='none'">` : ''}
+    </div>`;
+    
+    // 種族顯示（含圖標）
+    const raceIcon = raceId ? (RACE_ICON_MAP[raceId] || '') : '';
+    const raceHtml = `<div class="d-flex align-items-center class-race-container">
+      <span>${escapeHtml(raceName)}</span>
+      ${raceIcon ? `<img src="${raceIcon}" alt="${raceName}" style="width:20px;height:20px;margin-left:5px;" onerror="this.style.display='none'">` : ''}
+    </div>`;
+    
+    const row = `<tr><td>1</td><td>${escapeHtml(name)}</td><td>${clsHtml}</td><td>${raceHtml}</td><td>${entry.rating}</td><td>${entry.played}</td><td>${entry.won}</td><td>${entry.lost}</td><td>${entry.winRate.toFixed(1)}</td></tr>`;
+    tbody.append(row);
+  }
+
+  const modalEl = document.getElementById('teamModal');
+  const bs = new bootstrap.Modal(modalEl);
+  bs.show();
+}
+
+function escapeHtml(s){ return String(s||'').replace(/[&<>\"]/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]; }); }
+
+</script>
+</body>
+</html>
