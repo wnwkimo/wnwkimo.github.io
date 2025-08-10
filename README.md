@@ -1,3 +1,4 @@
+Hi, 你好
 # Taiwan WoW Classic Arena Historical Leaderboard
 
 A comprehensive historical leaderboard tracking system for World of Warcraft Classic Arena rankings in the Taiwan region.
@@ -53,15 +54,6 @@ The leaderboard data is regularly updated to reflect the most current informatio
 - Team compositions and partnerships
 - Cross-season performance comparisons
 
-## 🤝 Contributing
-
-Contributions are welcome! If you have suggestions for improvements or additional features:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
 ## 📝 Data Sources
 
 All ranking data is sourced from official Blizzard Entertainment leaderboards and verified third-party tracking services to ensure accuracy and completeness.
@@ -80,10 +72,10 @@ Special thanks to the Taiwan World of Warcraft Classic community for their conti
 
 ---
 
-**Author**: Yesican - ivus
+**Author**: Yesican - ivus 榮耀來自於夥伴
 
 **Project**: Taiwan WoW Classic Arena Historical Leaderboard
-
+**Contact me**: wnwkimo@hotmail.com
 **Repository**: [wnwkimo/tw_classic_arena_leadderboard](https://github.com/wnwkimo/tw_classic_arena_leadderboard)
 
 ---
